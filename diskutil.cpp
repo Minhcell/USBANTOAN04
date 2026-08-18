@@ -77,15 +77,20 @@ bool setupUsb(int dn, const QString& loginPw,
     QString exePath = QCoreApplication::applicationFilePath();
     quint64 exeSz = (quint64)QFileInfo(exePath).size();
     quint64 exeMbCeil = (exeSz + 1024*1024 - 1)/(1024*1024);
-    quint64 pubMb = exeMbCeil + 2; if(pubMb<20) pubMb=20;
+    // GIONG H04: dung FAT16 (fs=fat) -> phan vung nho vua co EXE (khong bi
+    // rang buoc toi thieu ~33MB nhu FAT32). Sau do NHOI EXE bang so 0 cho
+    // day phan vung -> chi 1 file EXE, 0 byte trong (giong het H04).
+    quint64 pubMb = exeMbCeil + 2;
+    if(pubMb < 8) pubMb = 8;   // toi thieu 8MB -> chac chan la FAT16, van nho gon
 
     if(cb) cb("Xóa USB...");
     runDiskpart(QString("select disk %1\nclean\nexit\n").arg(dn));
     Sleep(2000);
 
     if(cb) cb("Tạo phân vùng EXE...");
+    // fs=fat => FAT16 (cho phep phan vung nho vai MB, giong H04). Label <= 11 ky tu.
     runDiskpart(QString("select disk %1\ncreate partition primary size=%2\n"
-                        "format fs=fat32 quick label=\"USB AN TOAN\"\nactive\nassign\nexit\n")
+                        "format fs=fat quick label=\"USB AN TOAN\"\nactive\nassign\nexit\n")
                 .arg(dn).arg(pubMb));
     Sleep(3000);
 
@@ -104,19 +109,27 @@ bool setupUsb(int dn, const QString& loginPw,
         outMsg="Ghi sector thất bại!"; return false;
     }
 
-    // Tìm ký tự ổ phân vùng EXE (removable, dung lượng nhỏ)
+    // Tìm ký tự ổ phân vùng EXE = ổ removable nằm trên ĐÚNG đĩa vừa tạo
     if(cb) cb("Tìm phân vùng EXE...");
     QString pub;
-    for(int tries=0; tries<5 && pub.isEmpty(); tries++){
+    for(int tries=0; tries<10 && pub.isEmpty(); tries++){
         for(const QString& d : logicalDrives()){
             if(GetDriveTypeW((LPCWSTR)d.utf16())==DRIVE_REMOVABLE){
-                QStorageInfo si(d);
-                if(si.isValid() && si.bytesTotal() < (qint64)200*1024*1024){ pub=d; break; }
+                if(getPhysicalDriveNumber(d)==dn){ pub=d; break; }
             }
         }
         if(pub.isEmpty()) Sleep(2000);
     }
-    if(pub.isEmpty()){ outMsg="Không tìm phân vùng EXE!"; return false; }
+    // Dự phòng: nếu chưa khớp được theo số đĩa, tìm theo dung lượng nhỏ
+    if(pub.isEmpty()){
+        for(const QString& d : logicalDrives()){
+            if(GetDriveTypeW((LPCWSTR)d.utf16())==DRIVE_REMOVABLE){
+                QStorageInfo si(d); si.refresh();
+                if(si.isValid() && si.bytesTotal()>0 && si.bytesTotal() < (qint64)200*1024*1024){ pub=d; break; }
+            }
+        }
+    }
+    if(pub.isEmpty()){ outMsg="Không tìm phân vùng EXE! (thử rút/cắm lại USB rồi chạy Setup lại)"; return false; }
 
     // Ghi config vào sector (JSON đơn giản)
     QByteArray salt(16,'\0');
