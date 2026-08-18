@@ -1,0 +1,74 @@
+==================================================================
+   USB AN TOAN - BAN C++ / Qt5 (giong H04 100%, 1 file EXE nho gon)
+==================================================================
+
+UU DIEM BAN C++ (so voi Python):
+  - Nhoi EXE lap phan vung DUNG 0 byte trong (giong het H04)
+  - Chi 1 file EXE, KHONG co file an nao (du PC bat "hien file an")
+  - File nho (~vai MB), khong can Python runtime, chay nhanh
+  - Link tinh hoan toan -> 1 file .exe duy nhat, khong can DLL
+
+------------------------------------------------------------------
+CACH BUILD (qua GitHub Actions - KHONG can cai gi tren may):
+------------------------------------------------------------------
+1. Tao 1 repository moi tren GitHub (Private cung duoc).
+
+2. Upload TAT CA file trong thu muc nay len repo, GIU NGUYEN cau truc:
+     USB_AN_TOAN.pro
+     common.h  main.cpp
+     diskio.h  diskio.cpp
+     sectorfs.h  sectorfs.cpp
+     diskutil.h  diskutil.cpp
+     workers.h  workers.cpp
+     logindialog.h  logindialog.cpp
+     setupwindow.h  setupwindow.cpp
+     mainwindow.h  mainwindow.cpp
+     app.manifest  app.rc
+     .github/workflows/build.yml     <-- QUAN TRONG, giu dung duong dan
+
+3. Vao tab "Actions" tren repo -> chay workflow
+   "Build USB AN TOAN (C++ Qt5 static - 1 file EXE)"
+   (hoac push code len la tu chay).
+
+4. Doi build xong (~10-20 phut lan dau vi tai Qt static).
+   Tai file trong muc "Artifacts": USB_AN_TOAN_Cpp_EXE
+   Ben trong co 2 file GIONG NHAU:
+     - USB_AN_TOAN.exe        (file chay chinh - copy vao USB)
+     - USB_AN_TOAN_Setup.exe  (file khoi tao USB)
+   (2 file giong het nhau, chi khac TEN. Ten co chu "setup" -> che do khoi tao.)
+
+------------------------------------------------------------------
+CACH DUNG:
+------------------------------------------------------------------
+BUOC 1 - KHOI TAO USB (chi lam 1 lan):
+  - Cam USB vao may.
+  - Chay USB_AN_TOAN_Setup.exe (chuot phai -> Run as administrator).
+  - Chon o USB, dat mat khau dang nhap -> bam Khoi tao.
+  - Xong: USB chi con 1 file USB_AN_TOAN.exe (0 byte trong, read-only).
+    !! CANH BAO: Format se XOA HET du lieu tren USB.
+
+BUOC 2 - SU DUNG:
+  - Rut USB, cam lai.
+  - Mo o USB, chay USB_AN_TOAN.exe (tu xin quyen Admin).
+  - Nhap mat khau dang nhap.
+  - Keo/chon file ben MAY TINH -> bam mui ten -> luu vao vung an cua USB.
+  - Ben USB -> mui ten nguoc lai -> copy ra may.
+
+MAT KHAU ADMIN (Format USB): M@nh6868
+
+------------------------------------------------------------------
+NEU BUILD BAO LOI:
+------------------------------------------------------------------
+  - Mo tab Actions -> bam vao lan build loi -> xem log doan mau do.
+  - Copy nguyen doan loi gui lai, minh se sua ngay.
+  (Vi minh khong build duoc trong may nen co the con vai loi
+   compile nho can chinh - gui log la fix nhanh.)
+
+------------------------------------------------------------------
+GHI CHU KY THUAT:
+------------------------------------------------------------------
+  - Du lieu luu o vung UNALLOCATED (raw sector) sau phan vung EXE
+    -> Windows KHONG thay, khong doi format.
+  - Copy raw theo luong khoi 16MB (nhanh cho file 16GB+), co nut Dung.
+  - Nhan dien USB bang chu ky "SECVAULT" o sector, khong dung file an.
+  - Chan copy truc tiep: phan vung day 0 byte + read-only.
