@@ -28,6 +28,16 @@
 #include <QDateTime>
 #include <QRandomGenerator>
 #include <QSet>
+#include <QStatusBar>
+#include <QProgressBar>
+#include <QLabel>
+#include <QPushButton>
+#include <QLineEdit>
+#include <QComboBox>
+#include <QTreeWidget>
+#include <QTreeWidgetItem>
+#include <QTimer>
+#include <QMenu>
 #include <QMap>
 #include <QPair>
 #include <QTimer>

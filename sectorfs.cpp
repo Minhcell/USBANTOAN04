@@ -136,14 +136,13 @@ bool SectorFS::writeSmall(const QString& name, const QByteArray& data){
     quint64 sz=(quint64)data.size();
     memcpy(hdr.data()+4, &sz, 8);
     diskWriteSectors(h, absSec(start), hdr);
-    quint64 esz = SECTOR;
     if(!data.isEmpty()){
         int pos=0; quint64 sec=start+1;
         while(pos<data.size()){
             QByteArray chunk = data.mid(pos, SECTOR*128);
             diskWriteSectors(h, absSec(sec), chunk);
             quint64 secs=(chunk.size()+SECTOR-1)/SECTOR;
-            sec+=secs; esz+=chunk.size(); pos+=chunk.size();
+            sec+=secs; pos+=chunk.size();
         }
     }
     SectorEntry e; e.name=name; e.sec=start; e.sz=sz; e.esz=SECTOR+sz; e.act=true;

@@ -4,8 +4,9 @@ CONFIG += c++11 release static
 TARGET = USB_AN_TOAN
 TEMPLATE = app
 
-# Plugin nen tang Windows cho ban static
-QTPLUGIN += qwindows
+# Ban static: qmake TU DONG import plugin nen tang qwindows.
+# KHONG khai bao QTPLUGIN += qwindows va KHONG Q_IMPORT_PLUGIN thu cong
+# (tranh import 2 lan -> loi trung ky hieu luc link).
 
 SOURCES += \
     main.cpp \

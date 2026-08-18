@@ -11,10 +11,8 @@
 #include "mainwindow.h"
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QtPlugin>
-#if defined(QT_STATIC)
-Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin)
-#endif
+// Ban static: qmake tu dong import qwindows -> KHONG Q_IMPORT_PLUGIN thu cong
+// (neu them tay se bi trung ky hieu luc link).
 
 static bool isSetup(){
     QString base = QFileInfo(QCoreApplication::applicationFilePath()).fileName().toLower();
