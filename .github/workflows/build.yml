@@ -1,0 +1,51 @@
+name: Build USB AN TOAN (C++ Qt5 static - 1 file EXE)
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - name: Tai code
+        uses: actions/checkout@v4
+
+      - name: Cai MSYS2 + Qt5 static (khong can compile Qt)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-qt5-static
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-make
+
+      - name: Build 1 file EXE (static)
+        run: |
+          set -e
+          QMAKE=$(ls /mingw64/qt5-static/bin/qmake 2>/dev/null || command -v qmake)
+          echo "qmake = $QMAKE"
+          "$QMAKE" USB_AN_TOAN.pro
+          mingw32-make -j2
+          echo "=== tim EXE ==="
+          find . -name "USB_AN_TOAN.exe"
+
+      - name: Gom ket qua (1 file EXE + ban Setup)
+        run: |
+          set -e
+          EXE=$(find . -name "USB_AN_TOAN.exe" | head -1)
+          echo "EXE = $EXE"
+          mkdir -p dist
+          cp "$EXE" dist/USB_AN_TOAN.exe
+          cp "$EXE" dist/USB_AN_TOAN_Setup.exe
+          ls -la dist/
+
+      - name: Tai len artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: USB_AN_TOAN_Cpp_EXE
+          path: dist/
