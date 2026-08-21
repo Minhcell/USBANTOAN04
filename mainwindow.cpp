@@ -10,6 +10,7 @@
 #include <QHeaderView>
 #include <QStyle>
 #include <QMessageBox>
+#include <QAbstractButton>
 #include <QInputDialog>
 #include <QFileInfo>
 #include <QDir>
@@ -429,6 +430,30 @@ void MainWindow::usbDoubleClicked(QTreeWidgetItem* it, int){
 }
 
 // ==================== COPY (worker) ====================
+// Hoi nguoi dung khi co file trung ten. Tra ve: -1=Huy, 0=Giu ca hai, 1=Ghi de, 2=Bo qua
+static int askOverwritePolicy(QWidget* parent, int n, const QString& sample=QString()){
+    QMessageBox box(parent);
+    box.setIcon(QMessageBox::Question);
+    box.setWindowTitle(QString::fromUtf8("Trùng tên"));
+    QString msg = QString::fromUtf8("Có %1 mục trùng tên đã tồn tại ở nơi đến.").arg(n);
+    if(!sample.isEmpty())
+        msg += QString::fromUtf8("\nVí dụ: \"%1\"").arg(sample);
+    msg += QString::fromUtf8("\n\nBạn muốn xử lý thế nào?");
+    box.setText(msg);
+    QPushButton* bOver = box.addButton(QString::fromUtf8("Ghi đè"), QMessageBox::AcceptRole);
+    QPushButton* bBoth = box.addButton(QString::fromUtf8("Giữ cả hai"), QMessageBox::ActionRole);
+    QPushButton* bSkip = box.addButton(QString::fromUtf8("Bỏ qua"), QMessageBox::ActionRole);
+    QPushButton* bCancel = box.addButton(QString::fromUtf8("Huỷ"), QMessageBox::RejectRole);
+    box.setDefaultButton(bOver);
+    box.exec();
+    QAbstractButton* c = box.clickedButton();
+    if(c==bCancel) return -1;
+    if(c==bOver)   return 1;   // Ghi de (Replace)
+    if(c==bSkip)   return 2;   // Bo qua (Skip)
+    (void)bBoth;
+    return 0;                  // Giu ca hai (KeepBoth)
+}
+
 void MainWindow::copyToUsb(){
     if(m_worker && m_worker->isRunning()){ QMessageBox::information(this,"",QString::fromUtf8("Đang copy, đợi hoặc bấm Dừng.")); return; }
     QList<QTreeWidgetItem*> sel = m_tp->selectedItems();
@@ -457,10 +482,23 @@ void MainWindow::copyToUsb(){
         }
     }
     if(jobs.isEmpty()){ QMessageBox::information(this,"",QString::fromUtf8("Không có gì để copy!")); return; }
+    // Kiem tra trung ten tren USB -> hoi ghi de
+    CopyWorker::Overwrite policy = CopyWorker::KeepBoth;
+    int collisions=0; QString sample;
+    for(const CopyJob& j : jobs){
+        if(j.marker) continue;
+        if(m_sfs->exists(j.name)){ collisions++; if(sample.isEmpty()) sample=j.name.section('/',-1); }
+    }
+    if(collisions>0){
+        int r = askOverwritePolicy(this, collisions, sample);
+        if(r<0) return;                       // Huy -> khong copy
+        policy = (CopyWorker::Overwrite)r;
+    }
     m_pb->setVisible(true); m_pb->setValue(0);
     m_prow->setVisible(true); m_stopBtn->setVisible(true); m_stopBtn->setEnabled(true);
     m_copyLbl->setText(QString::fromUtf8("Đang chuẩn bị..."));
     m_worker = new CopyWorker(m_sfs, jobs, CopyWorker::ToUsb, this);
+    m_worker->setOverwrite(policy);
     connect(m_worker, &CopyWorker::progress, this, &MainWindow::onProgress);
     connect(m_worker, &CopyWorker::errorMsg, this, [this](QString m){ statusBar()->showMessage("Lỗi: "+m, 4000); });
     connect(m_worker, &CopyWorker::finishedAll, this, [this](int ok,int tot,bool st){ onCopyDone(ok,tot,st,0); });
@@ -491,10 +529,22 @@ void MainWindow::copyFromUsb(){
         CopyJob j; j.name=name; j.out = QDir(m_cp).absoluteFilePath(QString(name).replace('/','/'));
         j.size = nameSz.value(name,0); jobs.append(j);
     }
+    // Kiem tra trung ten ben MAY TINH -> hoi ghi de
+    CopyWorker::Overwrite policy = CopyWorker::KeepBoth;
+    int collisions=0; QString sample;
+    for(const CopyJob& j : jobs){
+        if(QFileInfo::exists(j.out)){ collisions++; if(sample.isEmpty()) sample=QFileInfo(j.out).fileName(); }
+    }
+    if(collisions>0){
+        int r = askOverwritePolicy(this, collisions, sample);
+        if(r<0) return;
+        policy = (CopyWorker::Overwrite)r;
+    }
     m_pb->setVisible(true); m_pb->setValue(0);
     m_prow->setVisible(true); m_stopBtn->setVisible(true); m_stopBtn->setEnabled(true);
     m_copyLbl->setText(QString::fromUtf8("Đang chuẩn bị..."));
     m_worker = new CopyWorker(m_sfs, jobs, CopyWorker::FromUsb, this);
+    m_worker->setOverwrite(policy);
     connect(m_worker, &CopyWorker::progress, this, &MainWindow::onProgress);
     connect(m_worker, &CopyWorker::errorMsg, this, [this](QString m){ statusBar()->showMessage("Lỗi: "+m, 4000); });
     connect(m_worker, &CopyWorker::finishedAll, this, [this](int ok,int tot,bool st){ onCopyDone(ok,tot,st,1); });

@@ -40,6 +40,7 @@ public:
     bool writeStream(const QString& name, const QString& srcPath, ProgressFn progress);
     bool readStream(const QString& name, const QString& dstPath, ProgressFn progress);
     bool isStreamFile(const QString& name);
+    bool exists(const QString& name);        // co file active cung ten khong
 
     void deleteFile(const QString& name);
     bool renameEntry(const QString& oldName, const QString& newName);

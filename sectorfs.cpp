@@ -253,6 +253,11 @@ bool SectorFS::isStreamFile(const QString& name){
     return false;
 }
 
+bool SectorFS::exists(const QString& name){
+    for(const SectorEntry& e: files) if(e.name==name && e.act) return true;
+    return false;
+}
+
 void SectorFS::deleteFile(const QString& name){
     for(int i=files.size()-1;i>=0;i--) if(files[i].name==name) files.removeAt(i);
     writeTable();

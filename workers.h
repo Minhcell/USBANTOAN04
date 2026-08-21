@@ -20,9 +20,11 @@ class CopyWorker : public QThread {
     Q_OBJECT
 public:
     enum Dir { ToUsb, FromUsb };
+    enum Overwrite { KeepBoth=0, Replace=1, Skip=2 }; // xu ly khi trung ten
     CopyWorker(SectorFS* sfs, QList<CopyJob> jobs, Dir dir, QObject* p=nullptr)
-        : QThread(p), m_sfs(sfs), m_jobs(jobs), m_dir(dir) { m_stop=false; }
+        : QThread(p), m_sfs(sfs), m_jobs(jobs), m_dir(dir) { m_stop=false; m_ow=KeepBoth; }
     void requestStop(){ m_stop = true; }
+    void setOverwrite(Overwrite o){ m_ow = o; }
 signals:
     void progress(double done, double total, double speed, QString name);
     void finishedAll(int ok, int total, bool stopped);
@@ -34,6 +36,7 @@ private:
     QList<CopyJob> m_jobs;
     Dir m_dir;
     std::atomic<bool> m_stop;
+    Overwrite m_ow;
 };
 
 class UsbGuard : public QThread {

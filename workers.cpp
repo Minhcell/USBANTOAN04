@@ -32,7 +32,21 @@ void CopyWorker::run(){
             if(j.marker){
                 m_sfs->writeSmall(name, QByteArray());
             } else {
-                bool okk = m_sfs->writeStream(name, j.src, prog);
+                QString target = name;
+                if(m_sfs->exists(name)){
+                    if(m_ow==CopyWorker::Skip){ done = base + (double)j.size; ok++; continue; }
+                    else if(m_ow==CopyWorker::KeepBoth){
+                        // tao ten khong trung tren USB: them (1),(2)...
+                        int dot = name.lastIndexOf('.');
+                        int slash = name.lastIndexOf('/');
+                        QString stem = (dot>slash)? name.left(dot):name;
+                        QString ext  = (dot>slash)? name.mid(dot):QString();
+                        int c=1;
+                        while(m_sfs->exists(target)) target = QString("%1(%2)%3").arg(stem).arg(c++).arg(ext);
+                    }
+                    // Replace: giu nguyen target -> writeStream tu xoa entry cu (ghi de)
+                }
+                bool okk = m_sfs->writeStream(target, j.src, prog);
                 done = base + (double)j.size;
                 if(!okk && m_stop) break;
             }
@@ -40,12 +54,19 @@ void CopyWorker::run(){
             QString out = j.out;
             QString d = QFileInfo(out).absolutePath();
             if(!d.isEmpty()) QDir().mkpath(d);
-            // tránh ghi đè
-            QString b = out; int dot = b.lastIndexOf('.');
-            QString stem = (dot>0)? b.left(dot):b;
-            QString ext = (dot>0)? b.mid(dot):QString();
-            int c=1;
-            while(QFile::exists(out)){ out = QString("%1(%2)%3").arg(stem).arg(c++).arg(ext); }
+            if(QFileInfo::exists(out)){
+                if(m_ow==CopyWorker::Skip){ done = base + (double)j.size; ok++; continue; }
+                else if(m_ow==CopyWorker::KeepBoth){
+                    int dot = out.lastIndexOf('.');
+                    QString stem = (dot>0)? out.left(dot):out;
+                    QString ext  = (dot>0)? out.mid(dot):QString();
+                    int c=1;
+                    while(QFile::exists(out)) out = QString("%1(%2)%3").arg(stem).arg(c++).arg(ext);
+                } else { // Replace: xoa cai cu roi ghi de
+                    QFileInfo fi(out);
+                    if(fi.isDir()) QDir(out).removeRecursively(); else QFile::remove(out);
+                }
+            }
             if(m_sfs->isStreamFile(name)){
                 bool okk = m_sfs->readStream(name, out, prog);
                 done = base + (double)j.size;
