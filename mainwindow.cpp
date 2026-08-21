@@ -13,6 +13,7 @@
 #include <QAbstractButton>
 #include <QInputDialog>
 #include <QFileInfo>
+#include <QFile>
 #include <QDir>
 #include <QDirIterator>
 #include <QStandardPaths>
@@ -629,25 +630,59 @@ void MainWindow::renameItem(){
     loadUsb();
 }
 void MainWindow::deleteData(){
-    // xoá mục đang chọn bên USB
-    QList<QTreeWidgetItem*> sel = m_tu->selectedItems();
-    if(sel.isEmpty()){ QMessageBox::information(this,"",QString::fromUtf8("Chọn mục bên USB để xoá.")); return; }
-    if(QMessageBox::warning(this,"",QString::fromUtf8("Xoá các mục đã chọn?"),
-        QMessageBox::Yes|QMessageBox::No)!=QMessageBox::Yes) return;
-    m_sfs->readTable();
-    QList<SectorEntry> all = m_sfs->listFiles();
-    for(QTreeWidgetItem* it : sel){
-        QString nm = it->data(0, Qt::UserRole).toString();
-        if(nm=="..") continue;
-        if(it->data(0, Qt::UserRole+1).toBool()){
-            QString fold = (m_usbPath.isEmpty()? "" : m_usbPath+"/") + nm;
-            for(const SectorEntry& e : all)
-                if(e.name==fold+"/.keep" || e.name.startsWith(fold+"/")) m_sfs->deleteFile(e.name);
-        } else {
-            m_sfs->deleteFile(nm);
+    QList<QTreeWidgetItem*> selPc = m_tp->selectedItems();
+    QList<QTreeWidgetItem*> selUsb = m_tu->selectedItems();
+    // Bo qua dong ".." (di len) khi dem lua chon
+    auto realCount=[](const QList<QTreeWidgetItem*>& lst)->int{
+        int c=0;
+        for(QTreeWidgetItem* it : lst){
+            if(it->data(0, Qt::UserRole+2).toString()=="up") continue;
+            if(it->data(0, Qt::UserRole).toString()=="..") continue;
+            c++;
         }
+        return c;
+    };
+    int nPc = realCount(selPc), nUsb = realCount(selUsb);
+    if(nPc==0 && nUsb==0){
+        QMessageBox::information(this,"",QString::fromUtf8("Chọn mục (bên MÁY TÍNH hoặc USB) để xoá."));
+        return;
     }
-    loadUsb();
+    QString where = (nPc>0 && nUsb>0)? QString::fromUtf8("MÁY TÍNH và USB")
+                   : (nPc>0? QString::fromUtf8("MÁY TÍNH") : QString::fromUtf8("USB"));
+    if(QMessageBox::warning(this,"",
+        QString::fromUtf8("Xoá các mục đã chọn bên %1?\nKhông thể khôi phục!").arg(where),
+        QMessageBox::Yes|QMessageBox::No)!=QMessageBox::Yes) return;
+
+    // 1) Xoa ben MAY TINH (file/thu muc that)
+    if(nPc>0){
+        for(QTreeWidgetItem* it : selPc){
+            if(it->data(0, Qt::UserRole+2).toString()=="up") continue;
+            QString fp = it->data(0, Qt::UserRole).toString();
+            if(fp.isEmpty()) continue;
+            SetFileAttributesW((LPCWSTR)fp.utf16(), FILE_ATTRIBUTE_NORMAL);
+            if(it->data(0, Qt::UserRole+1).toBool()) QDir(fp).removeRecursively();
+            else QFile::remove(fp);
+        }
+        loadPc(m_cp);
+    }
+
+    // 2) Xoa ben USB (sector FS) - giu nguyen logic cu
+    if(nUsb>0){
+        m_sfs->readTable();
+        QList<SectorEntry> all = m_sfs->listFiles();
+        for(QTreeWidgetItem* it : selUsb){
+            QString nm = it->data(0, Qt::UserRole).toString();
+            if(nm=="..") continue;
+            if(it->data(0, Qt::UserRole+1).toBool()){
+                QString fold = (m_usbPath.isEmpty()? "" : m_usbPath+"/") + nm;
+                for(const SectorEntry& e : all)
+                    if(e.name==fold+"/.keep" || e.name.startsWith(fold+"/")) m_sfs->deleteFile(e.name);
+            } else {
+                m_sfs->deleteFile(nm);
+            }
+        }
+        loadUsb();
+    }
 }
 void MainWindow::formatUsb(){
     bool ok; QString pw = QInputDialog::getText(this, QString::fromUtf8("Format USB"),
