@@ -1,4 +1,5 @@
 #include "diskutil.h"
+#include "crypto.h"
 #include "diskio.h"
 #include "sectorfs.h"
 #include "common.h"
@@ -135,9 +136,18 @@ bool setupUsb(int dn, const QString& loginPw,
     QByteArray salt(16,'\0');
     QRandomGenerator::global()->fillRange(reinterpret_cast<quint32*>(salt.data()), 4);
     QString ph = hashPw(loginPw, salt);
-    QString json = QString("{\"v\":\"%1\",\"salt\":\"%2\",\"pw_hash\":\"%3\",\"att\":5,"
-                           "\"disk_number\":%4,\"data_offset\":%5}")
-                   .arg(APP_VER).arg(QString(salt.toHex())).arg(ph).arg(dn).arg(dataOff);
+    // Sinh MASTER KEY ngau nhien (thuc su ma hoa file). "Boc" (wrap) master key
+    // bang khoa dan xuat tu mat khau -> doi mat khau chi boc lai, KHONG phai
+    // ma hoa lai toan bo file.
+    QByteArray masterKey = randomBytes(32);
+    QByteArray kek = deriveKey(loginPw, salt);
+    QByteArray wrapped(32,'\0');
+    unsigned char zeroIv[16]; memset(zeroIv,0,16);
+    { AesCtr wa; if(wa.init(kek)) wa.process(zeroIv,0,masterKey.constData(),wrapped.data(),32); }
+    QString mkeyHex = QString(wrapped.toHex());
+    QString json = QString("{\"v\":\"%1\",\"salt\":\"%2\",\"pw_hash\":\"%3\",\"mkey\":\"%4\",\"att\":5,"
+                           "\"disk_number\":%5,\"data_offset\":%6}")
+                   .arg(APP_VER).arg(QString(salt.toHex())).arg(ph).arg(mkeyHex).arg(dn).arg(dataOff);
     {
         SectorFS sfs(dn, dataOff);
         if(!sfs.open()){ outMsg="Không mở SectorFS."; return false; }

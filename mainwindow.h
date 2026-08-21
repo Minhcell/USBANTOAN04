@@ -51,6 +51,7 @@ private:
     QString m_usbRoot, m_loginPw;
     QByteArray m_cfg;
     QString m_salt, m_pwHash;
+    QByteArray m_masterKey;   // khoá AES-256 thật (đã mở khoá từ mật khẩu)
     int m_diskNumber; quint64 m_dataOffset;
     SectorFS* m_sfs = nullptr;
     QString m_cp;        // thư mục PC hiện tại

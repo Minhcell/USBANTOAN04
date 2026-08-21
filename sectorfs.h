@@ -35,12 +35,16 @@ public:
     bool writeSmall(const QString& name, const QByteArray& data);
     QByteArray readSmall(const QString& name);
 
-    // Ghi/đọc file lớn theo luồng (raw, KHÔNG mã hoá), khối 16MB
+    // Ghi/đọc file lớn theo luồng (MÃ HOÁ AES-256-CTR nếu đã setKey), khối 16MB
     // progress trả false -> dừng (huỷ, không lưu / xoá file đích)
     bool writeStream(const QString& name, const QString& srcPath, ProgressFn progress);
     bool readStream(const QString& name, const QString& dstPath, ProgressFn progress);
     bool isStreamFile(const QString& name);
     bool exists(const QString& name);        // co file active cung ten khong
+
+    // Đặt khoá mã hoá (32 byte). Nếu đặt -> file copy vào USB sẽ được mã hoá.
+    void setKey(const QByteArray& key){ m_key = key; }
+    bool hasKey() const { return m_key.size()==32; }
 
     void deleteFile(const QString& name);
     bool renameEntry(const QString& oldName, const QString& newName);
@@ -59,6 +63,7 @@ private:
     HANDLE h = INVALID_HANDLE_VALUE;
     QList<SectorEntry> files;
     quint64 maxTblSec = TBL_START;
+    QByteArray m_key;   // khoá AES-256 (32 byte); rỗng = không mã hoá
 
     quint64 absSec(quint64 rel){ return off + rel; }
     quint64 nextFreeSector();

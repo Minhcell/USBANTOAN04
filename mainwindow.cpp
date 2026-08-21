@@ -2,6 +2,7 @@
 #include "diskio.h"
 #include "diskutil.h"
 #include "common.h"
+#include "crypto.h"
 #include <QApplication>
 #include <QWidget>
 #include <QVBoxLayout>
@@ -92,6 +93,26 @@ MainWindow::MainWindow(const QString& usbRoot, const QString& loginPw, const QBy
     m_sfs = new SectorFS(m_diskNumber, m_dataOffset);
     if(!m_sfs->open())
         QMessageBox::critical(nullptr,"",QString::fromUtf8("Lỗi mở disk %1").arg(m_diskNumber));
+
+    // Bật mã hoá: "mở khoá" MASTER KEY bằng mật khẩu đăng nhập.
+    // File copy vào USB được mã hoá bằng master key; bản gốc trên PC giữ nguyên.
+    {
+        QByteArray saltBytes = QByteArray::fromHex(m_salt.toUtf8());
+        QByteArray kek = deriveKey(m_loginPw, saltBytes);
+        QString mkeyHex = o.value("mkey").toString();
+        if(!mkeyHex.isEmpty() && kek.size()==32){
+            QByteArray wrapped = QByteArray::fromHex(mkeyHex.toUtf8());
+            QByteArray master(32,'\0');
+            unsigned char zeroIv[16]; memset(zeroIv,0,16);
+            AesCtr un;
+            if(wrapped.size()==32 && un.init(kek) &&
+               un.process(zeroIv,0,wrapped.constData(),master.data(),32)){
+                m_masterKey = master;
+                m_sfs->setKey(master);
+            }
+        }
+        // Neu khong co mkey (USB tao boi ban cu) -> khong ma hoa (file cu raw van doc duoc)
+    }
 
     buildUi();
     loadPc(m_cp);
@@ -710,8 +731,18 @@ void MainWindow::changeLoginPw(){
     QString nhash = hashPw(n1, nsalt);
     QJsonObject o = QJsonDocument::fromJson(m_cfg).object();
     o["salt"] = QString(nsalt.toHex()); o["pw_hash"] = nhash;
+    // Boc lai MASTER KEY bang mat khau moi -> KHONG phai ma hoa lai file,
+    // moi file da ma hoa van mo duoc.
+    if(m_masterKey.size()==32){
+        QByteArray nkek = deriveKey(n1, nsalt);
+        QByteArray wrapped(32,'\0');
+        unsigned char zeroIv[16]; memset(zeroIv,0,16);
+        AesCtr wa;
+        if(wa.init(nkek) && wa.process(zeroIv,0,m_masterKey.constData(),wrapped.data(),32))
+            o["mkey"] = QString(wrapped.toHex());
+    }
     m_cfg = QJsonDocument(o).toJson(QJsonDocument::Compact);
-    m_salt = o["salt"].toString(); m_pwHash = nhash;
+    m_salt = o["salt"].toString(); m_pwHash = nhash; m_loginPw = n1;
     m_sfs->writeConfig(m_cfg);
     QMessageBox::information(this,"",QString::fromUtf8("Đổi mật khẩu thành công!"));
 }

@@ -16,7 +16,8 @@ SOURCES += \
     workers.cpp \
     logindialog.cpp \
     setupwindow.cpp \
-    mainwindow.cpp
+    mainwindow.cpp \
+    crypto.cpp
 
 HEADERS += \
     common.h \
@@ -26,12 +27,14 @@ HEADERS += \
     workers.h \
     logindialog.h \
     setupwindow.h \
-    mainwindow.h
+    mainwindow.h \
+    crypto.h
 
 # Manifest yeu cau quyen Admin (runner can doc/ghi sector)
 RC_FILE = app.rc
 
-LIBS += -lshell32 -ladvapi32 -lole32 -luuid
+# -lbcrypt: ma hoa AES-256 + PBKDF2 (Windows CNG, tang toc AES-NI)
+LIBS += -lshell32 -ladvapi32 -lole32 -luuid -lbcrypt
 
 # Link tinh hoan toan -> 1 file EXE duy nhat, khong can DLL
 QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++

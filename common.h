@@ -23,6 +23,7 @@ static const quint32 MAX_FILES = 2048;
 static const char SEC_MAGIC[8] = {'S','E','C','V','A','U','L','T'};
 // magic đầu file stream (raw, KHÔNG mã hoá)
 static const char FILE_MAGIC[4] = {'S','R','A','W'};
+static const char FILE_MAGIC_ENC[4] = {'S','E','N','C'};   // file da ma hoa AES-256-CTR
 
 // Định dạng dung lượng có số lẻ giống H04 (vd 164.606 MB)
 inline QString fmtSize(double n){

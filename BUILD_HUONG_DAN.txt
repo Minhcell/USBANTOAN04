@@ -75,3 +75,15 @@ GHI CHU KY THUAT:
   - Phan vung EXE format FAT16 (fs=fat) giong H04 -> tao duoc phan vung
     NHO vua co EXE (FAT32 bat buoc >=33MB nen khong dung). EXE C++ nho
     (~vai MB) duoc nhoi so 0 cho day phan vung -> chi 1 file, 0 byte trong.
+
+----------------------------------------------------------------
+MA HOA AES-256 (da bat lai):
+----------------------------------------------------------------
+- File copy vao USB duoc MA HOA AES-256-CTR (tang toc AES-NI qua
+  Windows BCrypt) -> gan nhu KHONG lam cham copy file lon.
+- Khoa sinh tu mat khau dang nhap (PBKDF2). Co che "master key +
+  boc khoa": doi mat khau chi boc lai khoa, KHONG ma hoa lai file.
+- BAN GOC tren PC giu nguyen (chi doc de copy); chi ban tren USB
+  bi ma hoa. Sai mat khau -> khong giai ma duoc.
+- Can -lbcrypt (da them trong .pro). Bcrypt co san trong Windows,
+  khong can cai them, van 1 file EXE.

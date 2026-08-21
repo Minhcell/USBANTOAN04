@@ -1,5 +1,6 @@
 #include "sectorfs.h"
 #include "diskio.h"
+#include "crypto.h"
 #include <QFile>
 #include <cstring>
 
@@ -171,20 +172,30 @@ static const quint32 BLOCK = 16*1024*1024;
 bool SectorFS::writeStream(const QString& name, const QString& srcPath, ProgressFn progress){
     for(int i=files.size()-1;i>=0;i--)
         if(files[i].name==name && files[i].act) files.removeAt(i);
+    // NGUON CHI DOC - khong bao gio sua/xoa file goc tren PC
     QFile fi(srcPath);
     if(!fi.open(QIODevice::ReadOnly)) return false;
     quint64 total = (quint64)fi.size();
     quint64 start = nextFreeSector();
-    // header sector
+
+    // Chuan bi ma hoa (neu co khoa)
+    bool enc = hasKey();
+    AesCtr aes; unsigned char iv[16];
+    if(enc){
+        if(!aes.init(m_key)){ fi.close(); return false; }
+        QByteArray ivb = randomBytes(16);
+        memcpy(iv, ivb.constData(), 16);
+    }
+    // header sector: magic + size(8) + IV(16 neu ma hoa)
     QByteArray hdr(SECTOR, '\0');
-    memcpy(hdr.data(), FILE_MAGIC, 4);
+    memcpy(hdr.data(), enc? FILE_MAGIC_ENC : FILE_MAGIC, 4);
     memcpy(hdr.data()+4, &total, 8);
+    if(enc) memcpy(hdr.data()+12, iv, 16);
     diskWriteSectors(h, absSec(start), hdr);
-    // dữ liệu bắt đầu từ start+1, ghi khối 16MB
+
     void* buf = allocAligned(BLOCK);
     if(!buf){ fi.close(); return false; }
     quint64 curSec = start+1;
-    // seek 1 lần
     LARGE_INTEGER li; li.QuadPart = (LONGLONG)(absSec(curSec)*SECTOR);
     SetFilePointerEx(h, li, NULL, FILE_BEGIN);
     quint64 done=0; bool stopped=false;
@@ -192,6 +203,10 @@ bool SectorFS::writeStream(const QString& name, const QString& srcPath, Progress
     while(true){
         qint64 n = fi.read(tmp.data(), BLOCK);
         if(n<=0) break;
+        // MA HOA tai cho (CTR: startBlock = done/16). CTR giu nguyen do dai.
+        if(enc){
+            if(!aes.process(iv, done/16, tmp.constData(), tmp.data(), (int)n)){ break; }
+        }
         quint32 wlen = (quint32)n;
         if(wlen % SECTOR){
             quint32 pad = SECTOR - (wlen % SECTOR);
@@ -205,7 +220,7 @@ bool SectorFS::writeStream(const QString& name, const QString& srcPath, Progress
         if(progress && !progress(done>total?total:done, total)){ stopped=true; break; }
     }
     freeAligned(buf);
-    fi.close();
+    fi.close();   // file goc dong lai, KHONG he bi sua
     if(stopped){ writeTable(); return false; }
     SectorEntry e; e.name=name; e.sec=start; e.sz=total; e.esz=SECTOR+total; e.act=true;
     files.append(e);
@@ -218,8 +233,19 @@ bool SectorFS::readStream(const QString& name, const QString& dstPath, ProgressF
     for(const SectorEntry& e: files) if(e.name==name && e.act){ ent=e; found=true; break; }
     if(!found) return false;
     QByteArray hdr = diskReadSectors(h, absSec(ent.sec), 1);
-    if(hdr.size()<4 || memcmp(hdr.constData(), FILE_MAGIC,4)!=0) return false;
+    bool enc = (hdr.size()>=4 && memcmp(hdr.constData(), FILE_MAGIC_ENC,4)==0);
+    bool raw = (hdr.size()>=4 && memcmp(hdr.constData(), FILE_MAGIC,4)==0);
+    if(!enc && !raw) return false;
     quint64 total = ent.sz;
+
+    // Chuan bi giai ma (CTR: giai ma == ma hoa)
+    AesCtr aes; unsigned char iv[16];
+    if(enc){
+        if(!hasKey() || !aes.init(m_key)) return false;
+        if(hdr.size()<28) return false;
+        memcpy(iv, hdr.constData()+12, 16);
+    }
+
     QFile fo(dstPath);
     if(!fo.open(QIODevice::WriteOnly)) return false;
     void* buf = allocAligned(BLOCK);
@@ -233,6 +259,10 @@ bool SectorFS::readStream(const QString& name, const QString& dstPath, ProgressF
         DWORD rd=0;
         if(!ReadFile(h, buf, want, &rd, NULL) || rd==0) break;
         quint64 take = qMin<quint64>(rd, remain);
+        // GIAI MA tai cho (startBlock = written/16)
+        if(enc){
+            if(!aes.process(iv, written/16, (const char*)buf, (char*)buf, (int)take)){ break; }
+        }
         fo.write((const char*)buf, (int)take);
         written += take;
         if(progress && !progress(written, total)){ stopped=true; break; }
@@ -247,7 +277,9 @@ bool SectorFS::isStreamFile(const QString& name){
     for(const SectorEntry& e: files){
         if(e.name==name && e.act){
             QByteArray hdr = diskReadSectors(h, absSec(e.sec), 1);
-            return hdr.size()>=4 && memcmp(hdr.constData(), FILE_MAGIC,4)==0;
+            if(hdr.size()<4) return false;
+            return memcmp(hdr.constData(), FILE_MAGIC,4)==0
+                || memcmp(hdr.constData(), FILE_MAGIC_ENC,4)==0;
         }
     }
     return false;
