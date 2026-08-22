@@ -288,7 +288,8 @@ void MainWindow::buildUi(){
     m_prow->setVisible(false);
     rt->addWidget(m_prow);
 
-    statusBar()->showMessage(QString::fromUtf8("USB AN TOÀN | Dữ liệu ẩn, chặn copy trực tiếp"));
+    statusBar()->showMessage(QString::fromUtf8("USB AN TOÀN | Dữ liệu ẩn, chặn copy trực tiếp | Mã hoá AES-256: %1")
+        .arg(QString::fromUtf8(m_sfs && m_sfs->hasKey() ? "BẬT ✓" : "TẮT (khởi tạo lại USB)")));
 }
 
 // ==================== HELPERS ====================
